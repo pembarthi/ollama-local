@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Chat</title>
+    <style>
+        :root {
+            --bg-color: #343541;
+            --sidebar-bg: #202123;
+            --user-msg-bg: #343541;
+            --ai-msg-bg: #444654;
+            --text-color: #ececf1;
+            --input-bg: #40414f;
+            --border-color: #303139;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .new-chat-btn {
+            border: 1px solid #565869;
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            color: var(--text-color);
+            background: transparent;
+            text-align: left;
+        }
+
+        .new-chat-btn:hover {
+            background-color: #2A2B32;
+        }
+
+        #main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #chat-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 150px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .message.ai {
+            background-color: var(--ai-msg-bg);
+        }
+
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .avatar.user {
+            background-color: #5436DA;
+        }
+
+        .avatar.ai {
+            background-color: #10a37f;
+        }
+
+        .content {
+            flex: 1;
+            line-height: 1.6;
+            max-width: 800px;
+        }
+
+        #input-area {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(53,53,65,0), #343541 20%);
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .input-container {
+            position: relative;
+            width: 100%;
+            max-width: 768px;
+            background-color: var(--input-bg);
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+        }
+
+        textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 16px;
+            resize: none;
+            height: 24px;
+            max-height: 200px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        #send-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #8e8ea0;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        #send-btn:hover {
+            color: #d9d9e3;
+        }
+
+        #send-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .loading .content::after {
+            content: "▋";
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <button class="new-chat-btn" onclick="location.reload()">
+        <span>+</span> New chat
+    </button>
+</div>
+
+<div id="main-chat">
+    <div id="chat-container">
+        <!-- Messages will appear here -->
+        <div class="message ai">
+            <div class="avatar ai">AI</div>
+            <div class="content">Hello! I'm DeepSeek. How can I help you today?</div>
+        </div>
+    </div>
+
+    <div id="input-area">
+        <div class="input-container">
+            <textarea id="user-input" placeholder="Send a message..." rows="1" oninput="autoResize(this)"></textarea>
+            <button id="send-btn" onclick="sendMessage()">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const chatContainer = document.getElementById('chat-container');
+    const userInput = document.getElementById('user-input');
+
+    function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    async function sendMessage() {
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        // Add user message
+        appendMessage('user', message);
+        userInput.value = '';
+        userInput.style.height = '24px';
+
+        // Create placeholder for AI response
+        const aiMessageDiv = appendMessage('ai', '', true);
+        const contentDiv = aiMessageDiv.querySelector('.content');
+        
+        try {
+            const response = await fetch(`/api/chat?message=${encodeURIComponent(message)}`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            const text = await response.text();
+            contentDiv.textContent = text;
+        } catch (error) {
+            contentDiv.textContent = "Error: Could not connect to the server.";
+            contentDiv.style.color = "#ff6b6b";
+        } finally {
+            aiMessageDiv.classList.remove('loading');
+        }
+    }
+
+    function appendMessage(role, text, isLoading = false) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${role} ${isLoading ? 'loading' : ''}`;
+        
+        msgDiv.innerHTML = `
+            <div class="avatar ${role}">${role === 'user' ? 'U' : 'AI'}</div>
+            <div class="content">${text}</div>
+        `;
+        
+        chatContainer.appendChild(msgDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return msgDiv;
+    }
+</script>
+
+</body>
+</html>
